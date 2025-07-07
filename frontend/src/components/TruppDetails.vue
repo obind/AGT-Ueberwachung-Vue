@@ -1,609 +1,335 @@
 <template>
-  <div class="trupp-details">
-    <div class="details-header">
-      <h3>{{ trupp.aufgabe }}</h3>
-      <span :class="['status-badge', `status-${trupp.status}`]">
-        {{ getStatusText(trupp.status) }}
-      </span>
+  <div class="h-full bg-white">
+    <div v-if="!truppStore.selectedTrupp" class="h-full flex flex-col items-center justify-center p-8 text-center">
+      <div class="text-6xl mb-4">👥</div>
+      <h3 class="text-xl font-semibold text-gray-700 mb-2">Kein Trupp ausgewählt</h3>
+      <p class="text-gray-500">Wählen Sie einen Trupp aus der Liste aus, um Details anzuzeigen und zu verwalten.</p>
     </div>
-    
-    <!-- Trupp Members -->
-    <div class="members-section">
-      <h4>Truppbesetzung</h4>
-      <div class="members-grid">
-        <div class="member-card">
-          <div class="member-header">
-            <strong>Truppführer</strong>
+
+    <div v-else class="h-full flex flex-col">
+      <!-- Header -->
+      <div class="bg-gray-50 border-b border-gray-200 p-4">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">{{ trupp.aufgabe }}</h3>
+            <div class="flex items-center gap-2 mt-1">
+              <span :class="statusClasses[trupp.status]" class="px-2 py-1 rounded-full text-xs font-medium">
+                {{ statusLabels[trupp.status] }}
+              </span>
+              <span v-if="trupp.laufendeZeit && (trupp.status === 'im_einsatz' || trupp.status === 'rueckzug')" 
+                    class="font-mono text-sm font-medium text-gray-700">
+                {{ truppStore.formatTime(trupp.laufendeZeit) }}
+              </span>
+            </div>
           </div>
-          <div class="member-name">{{ trupp.truppfuehrer.name }}</div>
-          <div v-if="trupp.truppfuehrer.funkrufname" class="member-funk">
-            {{ trupp.truppfuehrer.funkrufname }}
+          
+          <!-- Action Buttons -->
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-if="trupp.status === 'bereit'"
+              @click="startTrupp"
+              class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+            >
+              ▶️ Start
+            </button>
+            
+            <button
+              v-if="trupp.status === 'im_einsatz'"
+              @click="setStatus('rueckzug')"
+              class="px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm transition-colors"
+            >
+              🔄 Rückzug
+            </button>
+            
+            <button
+              v-if="trupp.status === 'im_einsatz' || trupp.status === 'rueckzug'"
+              @click="setStatus('beendet')"
+              class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+            >
+              ⏹️ Beenden
+            </button>
+            
+            <button
+              @click="deleteTrupp"
+              class="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors"
+            >
+              🗑️ Löschen
+            </button>
           </div>
         </div>
-        
-        <div class="member-card">
-          <div class="member-header">
-            <strong>Truppmann 1</strong>
-          </div>
-          <div class="member-name">{{ trupp.truppmann1.name }}</div>
-          <div v-if="trupp.truppmann1.funkrufname" class="member-funk">
-            {{ trupp.truppmann1.funkrufname }}
+      </div>
+
+      <!-- Content -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-6">
+        <!-- Personal Information -->
+        <div class="bg-gray-50 rounded-lg p-4">
+          <h4 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            👥 Personal
+          </h4>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-gray-700">Truppführer:</span>
+              <span>{{ trupp.truppfuehrer.name }}</span>
+              <span v-if="trupp.truppfuehrer.funkrufname" class="text-gray-500 text-sm">
+                ({{ trupp.truppfuehrer.funkrufname }})
+              </span>
+            </div>
+            <div v-if="trupp.truppmann1" class="flex items-center gap-2">
+              <span class="font-medium text-gray-700">Truppmann 1:</span>
+              <span>{{ trupp.truppmann1.name }}</span>
+              <span v-if="trupp.truppmann1.funkrufname" class="text-gray-500 text-sm">
+                ({{ trupp.truppmann1.funkrufname }})
+              </span>
+            </div>
+            <div v-if="trupp.truppmann2" class="flex items-center gap-2">
+              <span class="font-medium text-gray-700">Truppmann 2:</span>
+              <span>{{ trupp.truppmann2.name }}</span>
+              <span v-if="trupp.truppmann2.funkrufname" class="text-gray-500 text-sm">
+                ({{ trupp.truppmann2.funkrufname }})
+              </span>
+            </div>
           </div>
         </div>
-        
-        <div v-if="trupp.truppmann2" class="member-card">
-          <div class="member-header">
-            <strong>Truppmann 2</strong>
+
+        <!-- Time Information -->
+        <div v-if="trupp.startzeit" class="bg-blue-50 rounded-lg p-4">
+          <h4 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            ⏱️ Zeiten
+          </h4>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-gray-700">Startzeit:</span>
+              <span class="font-mono">{{ formatDateTime(trupp.startzeit) }}</span>
+            </div>
+            <div v-if="trupp.laufendeZeit" class="flex items-center gap-2">
+              <span class="font-medium text-gray-700">Laufende Zeit:</span>
+              <span class="font-mono text-lg font-bold" :class="getTimeColor(trupp.laufendeZeit)">
+                {{ truppStore.formatTime(trupp.laufendeZeit) }}
+              </span>
+            </div>
+            <div v-if="trupp.endzeit" class="flex items-center gap-2">
+              <span class="font-medium text-gray-700">Endzeit:</span>
+              <span class="font-mono">{{ formatDateTime(trupp.endzeit) }}</span>
+            </div>
+            <div v-if="trupp.einsatzdauer" class="flex items-center gap-2">
+              <span class="font-medium text-gray-700">Gesamtdauer:</span>
+              <span class="font-mono">{{ trupp.einsatzdauer }} Minuten</span>
+            </div>
           </div>
-          <div class="member-name">{{ trupp.truppmann2.name }}</div>
-          <div v-if="trupp.truppmann2.funkrufname" class="member-funk">
-            {{ trupp.truppmann2.funkrufname }}
+        </div>
+
+        <!-- Pressure Values -->
+        <div class="bg-orange-50 rounded-lg p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="font-semibold text-gray-900 flex items-center gap-2">
+              🔧 Druckwerte
+            </h4>
+            <button
+              v-if="trupp.status === 'im_einsatz' || trupp.status === 'rueckzug'"
+              @click="showDruckModal = true"
+              class="px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm transition-colors"
+            >
+              📊 Druckwerte eingeben
+            </button>
+          </div>
+          
+          <div v-if="latestDruckwerte" class="space-y-2">
+            <div class="text-sm text-gray-600 mb-2">
+              Letzte Messung: {{ formatDateTime(latestDruckwerte.zeitpunkt) }}
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div v-if="latestDruckwerte.truppfuehrer" class="bg-white p-2 rounded border">
+                <div class="text-xs text-gray-500">Truppführer</div>
+                <div class="font-mono font-bold" :class="getPressureColor(latestDruckwerte.truppfuehrer)">
+                  {{ latestDruckwerte.truppfuehrer }} bar
+                </div>
+              </div>
+              <div v-if="latestDruckwerte.truppmann1" class="bg-white p-2 rounded border">
+                <div class="text-xs text-gray-500">Truppmann 1</div>
+                <div class="font-mono font-bold" :class="getPressureColor(latestDruckwerte.truppmann1)">
+                  {{ latestDruckwerte.truppmann1 }} bar
+                </div>
+              </div>
+              <div v-if="latestDruckwerte.truppmann2" class="bg-white p-2 rounded border">
+                <div class="text-xs text-gray-500">Truppmann 2</div>
+                <div class="font-mono font-bold" :class="getPressureColor(latestDruckwerte.truppmann2)">
+                  {{ latestDruckwerte.truppmann2 }} bar
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div v-else class="text-gray-500 text-sm">
+            Noch keine Druckwerte erfasst
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="bg-yellow-50 rounded-lg p-4">
+          <h4 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            📝 Notizen
+          </h4>
+          <textarea
+            v-model="notizen"
+            @blur="updateNotizen"
+            placeholder="Notizen zum Trupp..."
+            rows="3"
+            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Pressure History -->
+        <div v-if="trupp.druckmessungen.length > 1" class="bg-gray-50 rounded-lg p-4">
+          <h4 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            📈 Druckverlauf
+          </h4>
+          <div class="space-y-2 max-h-40 overflow-y-auto">
+            <div
+              v-for="(messung, index) in trupp.druckmessungen.slice().reverse()"
+              :key="index"
+              class="bg-white p-2 rounded border text-sm"
+            >
+              <div class="font-mono text-xs text-gray-500 mb-1">
+                {{ formatDateTime(messung.zeitpunkt) }}
+              </div>
+              <div class="flex gap-4">
+                <span v-if="messung.truppfuehrer">TF: {{ messung.truppfuehrer }}bar</span>
+                <span v-if="messung.truppmann1">TM1: {{ messung.truppmann1 }}bar</span>
+                <span v-if="messung.truppmann2">TM2: {{ messung.truppmann2 }}bar</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-    
-    <!-- Time Control -->
-    <div class="time-section">
-      <h4>Zeitüberwachung</h4>
-      <div class="time-display">
-        <div class="elapsed-time">
-          <span class="time-label">Verstrichene Zeit:</span>
-          <span class="time-value">{{ formatTime(trupp.elapsedTime) }}</span>
-        </div>
-        
-        <div v-if="trupp.startzeit" class="start-time">
-          <span class="time-label">Startzeit:</span>
-          <span class="time-value">{{ formatDateTime(trupp.startzeit) }}</span>
-        </div>
-      </div>
-      
-      <div class="time-controls">
-        <button 
-          v-if="!trupp.isRunning && trupp.status === 'bereit'"
-          @click="startTrupp"
-          class="btn-start"
-        >
-          Start
-        </button>
-        
-        <button 
-          v-if="trupp.isRunning"
-          @click="stopTrupp"
-          class="btn-stop"
-        >
-          Stop
-        </button>
-        
-        <button 
-          v-if="trupp.isRunning"
-          @click="maydayAlert"
-          class="btn-mayday"
-        >
-          MAYDAY
-        </button>
-      </div>
-    </div>
-    
-    <!-- Status Management -->
-    <div class="status-section">
-      <h4>Status</h4>
-      <div class="status-controls">
-        <button 
-          v-for="status in availableStatuses"
-          :key="status.value"
-          @click="updateStatus(status.value)"
-          :class="['btn-status', { 'active': trupp.status === status.value }]"
-        >
-          {{ status.label }}
-        </button>
-      </div>
-    </div>
-    
-    <!-- Pressure Values -->
-    <div class="pressure-section">
-      <h4>Druckwerte</h4>
-      <button @click="showPressureModal = true" class="btn-pressure">
-        Druckwerte eingeben
-      </button>
-      
-      <div v-if="hasPressureValues" class="pressure-display">
-        <div class="pressure-member">
-          <strong>TF:</strong> 
-          <span v-if="trupp.truppfuehrer.druckwerte.length > 0">
-            {{ trupp.truppfuehrer.druckwerte[trupp.truppfuehrer.druckwerte.length - 1] }} bar
-          </span>
-          <span v-else>-</span>
-        </div>
-        <div class="pressure-member">
-          <strong>TM1:</strong>
-          <span v-if="trupp.truppmann1.druckwerte.length > 0">
-            {{ trupp.truppmann1.druckwerte[trupp.truppmann1.druckwerte.length - 1] }} bar
-          </span>
-          <span v-else>-</span>
-        </div>
-        <div v-if="trupp.truppmann2" class="pressure-member">
-          <strong>TM2:</strong>
-          <span v-if="trupp.truppmann2.druckwerte.length > 0">
-            {{ trupp.truppmann2.druckwerte[trupp.truppmann2.druckwerte.length - 1] }} bar
-          </span>
-          <span v-else>-</span>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Notes -->
-    <div class="notes-section">
-      <h4>Notizen</h4>
-      <textarea
-        v-model="trupp.notizen"
-        @input="updateNotes"
-        placeholder="Notizen zum Trupp..."
-        rows="4"
-      ></textarea>
-    </div>
-    
+
     <!-- Pressure Input Modal -->
-    <div v-if="showPressureModal" class="modal-overlay" @click="showPressureModal = false">
-      <div class="modal" @click.stop>
-        <h3>Druckwerte eingeben</h3>
-        <div class="pressure-form">
-          <div class="pressure-input">
-            <label>Truppführer (bar):</label>
-            <input type="number" v-model.number="pressureForm.truppfuehrer" min="0" max="300" />
-          </div>
-          <div class="pressure-input">
-            <label>Truppmann 1 (bar):</label>
-            <input type="number" v-model.number="pressureForm.truppmann1" min="0" max="300" />
-          </div>
-          <div v-if="trupp.truppmann2" class="pressure-input">
-            <label>Truppmann 2 (bar):</label>
-            <input type="number" v-model.number="pressureForm.truppmann2" min="0" max="300" />
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button @click="showPressureModal = false" class="btn-secondary">Abbrechen</button>
-          <button @click="savePressureValues" class="btn-primary">Speichern</button>
-        </div>
-      </div>
-    </div>
+    <DruckwerteModal
+      v-if="showDruckModal"
+      :trupp="trupp"
+      @close="showDruckModal = false"
+      @save="saveDruckwerte"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useTruppStore } from '../stores/trupp'
-import type { Trupp } from '../stores/trupp'
+import DruckwerteModal from './DruckwerteModal.vue'
 
 const truppStore = useTruppStore()
+const showDruckModal = ref(false)
+const notizen = ref('')
 
-const showPressureModal = ref(false)
-const pressureForm = ref({
-  truppfuehrer: 0,
-  truppmann1: 0,
-  truppmann2: 0
-})
+const trupp = computed(() => truppStore.selectedTrupp)
+const latestDruckwerte = computed(() => 
+  trupp.value ? truppStore.getLatestDruckwerte(trupp.value.id) : null
+)
 
-let timeInterval: number | null = null
-
-const trupp = computed(() => truppStore.selectedTrupp as Trupp)
-
-const hasPressureValues = computed(() => {
-  return trupp.value.truppfuehrer.druckwerte.length > 0 ||
-         trupp.value.truppmann1.druckwerte.length > 0 ||
-         (trupp.value.truppmann2 && trupp.value.truppmann2.druckwerte.length > 0)
-})
-
-const availableStatuses = [
-  { value: 'bereit', label: 'Bereit' },
-  { value: 'im_einsatz', label: 'Im Einsatz' },
-  { value: 'rueckzug', label: 'Rückzug' },
-  { value: 'beendet', label: 'Beendet' }
-]
-
-onMounted(() => {
-  if (trupp.value.isRunning) {
-    startTimeTracking()
-  }
-})
-
-onUnmounted(() => {
-  if (timeInterval) {
-    clearInterval(timeInterval)
-  }
-})
-
-function startTimeTracking() {
-  timeInterval = setInterval(() => {
-    if (trupp.value.isRunning && trupp.value.startzeit) {
-      const elapsed = Math.floor((Date.now() - trupp.value.startzeit.getTime()) / 1000)
-      truppStore.updateElapsedTime(trupp.value.id, elapsed)
-    }
-  }, 1000)
+const statusLabels = {
+  'bereit': 'Bereit',
+  'im_einsatz': 'Im Einsatz',
+  'rueckzug': 'Rückzug',
+  'beendet': 'Beendet'
 }
 
-function stopTimeTracking() {
-  if (timeInterval) {
-    clearInterval(timeInterval)
-    timeInterval = null
-  }
+const statusClasses = {
+  'bereit': 'bg-gray-100 text-gray-800',
+  'im_einsatz': 'bg-green-100 text-green-800',
+  'rueckzug': 'bg-yellow-100 text-yellow-800',
+  'beendet': 'bg-red-100 text-red-800'
 }
+
+watch(trupp, (newTrupp) => {
+  if (newTrupp) {
+    notizen.value = newTrupp.notizen || ''
+  }
+}, { immediate: true })
 
 function startTrupp() {
-  truppStore.startTrupp(trupp.value.id)
-  startTimeTracking()
-}
-
-function stopTrupp() {
-  truppStore.stopTrupp(trupp.value.id)
-  stopTimeTracking()
-}
-
-function updateStatus(status: Trupp['status']) {
-  truppStore.updateTruppStatus(trupp.value.id, status)
+  if (!trupp.value) return
   
-  if (status === 'beendet') {
-    stopTimeTracking()
+  // Show initial pressure modal
+  const anfangsdruckModal = document.querySelector('anfangsdruck-modal')
+  if (anfangsdruckModal) {
+    anfangsdruckModal.show(trupp.value)
+  } else {
+    // Fallback: start without pressure input
+    truppStore.startTrupp(trupp.value.id, {
+      truppfuehrer: 300,
+      truppmann1: trupp.value.truppmann1 ? 300 : undefined,
+      truppmann2: trupp.value.truppmann2 ? 300 : undefined
+    })
   }
 }
 
-function updateNotes() {
-  truppStore.updateTrupp(trupp.value.id, { notizen: trupp.value.notizen })
+function setStatus(status: string) {
+  if (!trupp.value) return
+  truppStore.setTruppStatus(trupp.value.id, status)
 }
 
-function maydayAlert() {
-  if (confirm('MAYDAY-Alarm auslösen?\n\nDies wird alle verfügbaren Kräfte alarmieren!')) {
-    alert('MAYDAY-ALARM!\n\nTrupp: ' + trupp.value.aufgabe + '\nZeit: ' + new Date().toLocaleTimeString())
-    // TODO: Implement proper Mayday protocol
-  }
-}
-
-function savePressureValues() {
-  if (pressureForm.value.truppfuehrer > 0) {
-    truppStore.addDruckwert(trupp.value.id, 'truppfuehrer', pressureForm.value.truppfuehrer)
-  }
-  if (pressureForm.value.truppmann1 > 0) {
-    truppStore.addDruckwert(trupp.value.id, 'truppmann1', pressureForm.value.truppmann1)
-  }
-  if (trupp.value.truppmann2 && pressureForm.value.truppmann2 > 0) {
-    truppStore.addDruckwert(trupp.value.id, 'truppmann2', pressureForm.value.truppmann2)
-  }
+function deleteTrupp() {
+  if (!trupp.value) return
   
-  // Reset form
-  pressureForm.value = {
-    truppfuehrer: 0,
-    truppmann1: 0,
-    truppmann2: 0
+  if (confirm(`Möchten Sie den Trupp "${trupp.value.aufgabe}" wirklich löschen?`)) {
+    truppStore.deleteTrupp(trupp.value.id)
   }
-  
-  showPressureModal.value = false
 }
 
-function getStatusText(status: string): string {
-  const statusMap: Record<string, string> = {
-    'bereit': 'Bereit',
-    'im_einsatz': 'Im Einsatz',
-    'rueckzug': 'Rückzug',
-    'beendet': 'Beendet'
-  }
-  return statusMap[status] || status
+function updateNotizen() {
+  if (!trupp.value) return
+  truppStore.updateNotizen(trupp.value.id, notizen.value)
 }
 
-function formatTime(seconds: number): string {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+function saveDruckwerte(druckwerte: any) {
+  if (!trupp.value) return
+  truppStore.addDruckmessung(trupp.value.id, druckwerte)
+  showDruckModal.value = false
 }
 
 function formatDateTime(date: Date): string {
-  return date.toLocaleString('de-DE')
+  return date.toLocaleString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function getTimeColor(seconds: number): string {
+  const minutes = seconds / 60
+  if (minutes >= 30) return 'text-red-600'
+  if (minutes >= 20) return 'text-yellow-600'
+  return 'text-green-600'
+}
+
+function getPressureColor(pressure: number): string {
+  if (pressure <= 50) return 'text-red-600'
+  if (pressure <= 100) return 'text-yellow-600'
+  return 'text-green-600'
 }
 </script>
 
 <style scoped>
-.trupp-details {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
+/* Custom scrollbar for pressure history */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 4px;
 }
 
-.details-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 2px;
 }
 
-.details-header h3 {
-  color: #1a365d;
-  margin: 0;
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 2px;
 }
 
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.status-bereit {
-  background-color: #e2e8f0;
-  color: #2d3748;
-}
-
-.status-im_einsatz {
-  background-color: #c6f6d5;
-  color: #22543d;
-}
-
-.status-rueckzug {
-  background-color: #fed7d7;
-  color: #742a2a;
-}
-
-.status-beendet {
-  background-color: #e2e8f0;
-  color: #4a5568;
-}
-
-.members-section,
-.time-section,
-.status-section,
-.pressure-section,
-.notes-section {
-  margin-bottom: 1.5rem;
-}
-
-.members-section h4,
-.time-section h4,
-.status-section h4,
-.pressure-section h4,
-.notes-section h4 {
-  color: #2d3748;
-  margin-bottom: 0.75rem;
-  font-size: 1rem;
-}
-
-.members-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-}
-
-.member-card {
-  background-color: #f7fafc;
-  padding: 1rem;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
-}
-
-.member-header {
-  color: #4a5568;
-  font-size: 0.875rem;
-  margin-bottom: 0.5rem;
-}
-
-.member-name {
-  font-weight: bold;
-  color: #1a365d;
-}
-
-.member-funk {
-  color: #718096;
-  font-style: italic;
-  font-size: 0.875rem;
-}
-
-.time-display {
-  background-color: #f7fafc;
-  padding: 1rem;
-  border-radius: 6px;
-  margin-bottom: 1rem;
-}
-
-.elapsed-time,
-.start-time {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.elapsed-time:last-child,
-.start-time:last-child {
-  margin-bottom: 0;
-}
-
-.time-label {
-  color: #4a5568;
-}
-
-.time-value {
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
-  color: #1a365d;
-}
-
-.time-controls {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.btn-start {
-  background-color: #38a169;
-  color: white;
-}
-
-.btn-stop {
-  background-color: #e53e3e;
-  color: white;
-}
-
-.btn-mayday {
-  background-color: #d69e2e;
-  color: white;
-  font-weight: bold;
-}
-
-.btn-start,
-.btn-stop,
-.btn-mayday {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.btn-start:hover,
-.btn-stop:hover,
-.btn-mayday:hover {
-  opacity: 0.9;
-}
-
-.status-controls {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.btn-status {
-  padding: 0.5rem 1rem;
-  border: 1px solid #cbd5e0;
-  background-color: white;
-  color: #4a5568;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-status:hover {
-  background-color: #f7fafc;
-}
-
-.btn-status.active {
-  background-color: #3182ce;
-  color: white;
-  border-color: #3182ce;
-}
-
-.btn-pressure {
-  background-color: #3182ce;
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-bottom: 1rem;
-}
-
-.pressure-display {
-  background-color: #f7fafc;
-  padding: 1rem;
-  border-radius: 6px;
-}
-
-.pressure-member {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.pressure-member:last-child {
-  margin-bottom: 0;
-}
-
-.notes-section textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #cbd5e0;
-  border-radius: 4px;
-  resize: vertical;
-  font-family: inherit;
-}
-
-.notes-section textarea:focus {
-  outline: none;
-  border-color: #3182ce;
-  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  width: 90%;
-  max-width: 400px;
-}
-
-.modal h3 {
-  margin-bottom: 1.5rem;
-  color: #1a365d;
-  text-align: center;
-}
-
-.pressure-form {
-  margin-bottom: 1.5rem;
-}
-
-.pressure-input {
-  margin-bottom: 1rem;
-}
-
-.pressure-input label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: bold;
-  color: #2d3748;
-}
-
-.pressure-input input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #cbd5e0;
-  border-radius: 4px;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-}
-
-.btn-primary,
-.btn-secondary {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.btn-primary {
-  background-color: #3182ce;
-  color: white;
-}
-
-.btn-secondary {
-  background-color: #e2e8f0;
-  color: #2d3748;
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 </style>
 
