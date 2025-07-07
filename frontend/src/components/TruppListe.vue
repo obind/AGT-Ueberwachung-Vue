@@ -1,54 +1,66 @@
 <template>
   <div class="trupp-liste">
-    <div class="header">
-      <h3>Trupps</h3>
-      <button @click="$emit('addTrupp')" class="btn-add">
-        + Trupp hinzufügen
-      </button>
+    <div class="liste-header">
+      <h4>Aktive Trupps</h4>
+      <div class="trupp-count">{{ trupps.length }} Trupp{{ trupps.length !== 1 ? 's' : '' }}</div>
     </div>
     
     <div v-if="trupps.length === 0" class="empty-state">
-      <p>Noch keine Trupps hinzugefügt.</p>
-      <p>Klicken Sie auf "Trupp hinzufügen", um zu beginnen.</p>
+      <div class="empty-icon">👥</div>
+      <p>Noch keine Trupps hinzugefügt</p>
+      <small>Klicken Sie auf "Trupp hinzufügen", um zu beginnen.</small>
     </div>
     
-    <div v-else class="trupp-items">
+    <div v-else class="trupp-cards">
       <div
         v-for="trupp in trupps"
         :key="trupp.id"
-        :class="['trupp-item', { 'selected': trupp.id === selectedTruppId, 'active': trupp.isRunning }]"
-        @click="selectTrupp(trupp.id)"
+        @click="selectTrupp(trupp)"
+        :class="[
+          'trupp-card',
+          { 'selected': selectedTrupp?.id === trupp.id },
+          `status-${trupp.status}`
+        ]"
       >
-        <div class="trupp-header">
-          <span class="trupp-aufgabe">{{ trupp.aufgabe }}</span>
-          <span :class="['status-badge', `status-${trupp.status}`]">
+        <div class="card-header">
+          <div class="trupp-title">{{ trupp.aufgabe }}</div>
+          <div :class="['status-badge', `status-${trupp.status}`]">
             {{ getStatusText(trupp.status) }}
-          </span>
-        </div>
-        
-        <div class="trupp-members">
-          <div class="member">
-            <strong>TF:</strong> {{ trupp.truppfuehrer.name }}
-            <span v-if="trupp.truppfuehrer.funkrufname" class="funkrufname">
-              ({{ trupp.truppfuehrer.funkrufname }})
-            </span>
-          </div>
-          <div class="member">
-            <strong>TM1:</strong> {{ trupp.truppmann1.name }}
-            <span v-if="trupp.truppmann1.funkrufname" class="funkrufname">
-              ({{ trupp.truppmann1.funkrufname }})
-            </span>
-          </div>
-          <div v-if="trupp.truppmann2" class="member">
-            <strong>TM2:</strong> {{ trupp.truppmann2.name }}
-            <span v-if="trupp.truppmann2.funkrufname" class="funkrufname">
-              ({{ trupp.truppmann2.funkrufname }})
-            </span>
           </div>
         </div>
         
-        <div v-if="trupp.isRunning" class="trupp-time">
-          <span class="time-display">{{ formatTime(trupp.elapsedTime) }}</span>
+        <div class="card-content">
+          <div class="member-info">
+            <div class="member">
+              <span class="member-role">TF:</span>
+              <span class="member-name">{{ trupp.truppfuehrer.name }}</span>
+            </div>
+            <div class="member">
+              <span class="member-role">TM1:</span>
+              <span class="member-name">{{ trupp.truppmann1.name }}</span>
+            </div>
+            <div v-if="trupp.truppmann2" class="member">
+              <span class="member-role">TM2:</span>
+              <span class="member-name">{{ trupp.truppmann2.name }}</span>
+            </div>
+          </div>
+          
+          <div class="time-info" v-if="trupp.isRunning || trupp.elapsedTime > 0">
+            <div class="time-display">
+              <span class="time-icon">⏱️</span>
+              <span class="time-value">{{ formatTime(trupp.elapsedTime) }}</span>
+            </div>
+            <div v-if="trupp.startzeit" class="start-time">
+              Gestartet: {{ formatStartTime(trupp.startzeit) }}
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-footer" v-if="hasPressureData(trupp)">
+          <div class="pressure-summary">
+            <span class="pressure-icon">🔧</span>
+            <span class="pressure-text">Druckwerte erfasst</span>
+          </div>
         </div>
       </div>
     </div>
@@ -58,18 +70,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTruppStore } from '../stores/trupp'
+import type { Trupp } from '../stores/trupp'
 
 const truppStore = useTruppStore()
 
 const trupps = computed(() => truppStore.trupps)
-const selectedTruppId = computed(() => truppStore.selectedTruppId)
+const selectedTrupp = computed(() => truppStore.selectedTrupp)
 
-const emit = defineEmits<{
-  addTrupp: []
-}>()
-
-function selectTrupp(id: string) {
-  truppStore.selectTrupp(id)
+function selectTrupp(trupp: Trupp) {
+  truppStore.selectTrupp(trupp.id)
 }
 
 function getStatusText(status: string): string {
@@ -88,140 +97,261 @@ function formatTime(seconds: number): string {
   const secs = seconds % 60
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
+
+function formatStartTime(date: Date): string {
+  return date.toLocaleTimeString('de-DE', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  })
+}
+
+function hasPressureData(trupp: Trupp): boolean {
+  return trupp.truppfuehrer.druckwerte.length > 0 ||
+         trupp.truppmann1.druckwerte.length > 0 ||
+         (trupp.truppmann2 && trupp.truppmann2.druckwerte.length > 0)
+}
 </script>
 
 <style scoped>
 .trupp-liste {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-.header {
+.liste-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
-  background-color: #f7fafc;
-  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #f3f4f6;
 }
 
-.header h3 {
+.liste-header h4 {
   margin: 0;
-  color: #1a365d;
+  color: #1f2937;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
-.btn-add {
-  background-color: #38a169;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
-}
-
-.btn-add:hover {
-  background-color: #2f855a;
+.trupp-count {
+  background: #f3f4f6;
+  color: #6b7280;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .empty-state {
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
   text-align: center;
-  color: #718096;
+  color: #6b7280;
+  flex: 1;
 }
 
-.trupp-items {
-  max-height: 400px;
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-state p {
+  margin: 0 0 0.5rem 0;
+  font-weight: 500;
+  color: #374151;
+}
+
+.empty-state small {
+  font-size: 0.875rem;
+}
+
+.trupp-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
   overflow-y: auto;
 }
 
-.trupp-item {
+.trupp-card {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
   padding: 1rem;
-  border-bottom: 1px solid #e2e8f0;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  position: relative;
 }
 
-.trupp-item:hover {
-  background-color: #f7fafc;
+.trupp-card:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
 
-.trupp-item.selected {
-  background-color: #ebf8ff;
-  border-left: 4px solid #3182ce;
+.trupp-card.selected {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  background: #fef2f2;
 }
 
-.trupp-item.active {
-  border-left: 4px solid #38a169;
-}
-
-.trupp-header {
+.card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
 }
 
-.trupp-aufgabe {
-  font-weight: bold;
-  color: #1a365d;
+.trupp-title {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 1rem;
 }
 
 .status-badge {
-  padding: 0.25rem 0.5rem;
+  padding: 0.25rem 0.75rem;
   border-radius: 12px;
   font-size: 0.75rem;
-  font-weight: bold;
+  font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.025em;
 }
 
 .status-bereit {
-  background-color: #e2e8f0;
-  color: #2d3748;
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .status-im_einsatz {
-  background-color: #c6f6d5;
-  color: #22543d;
+  background: #dcfce7;
+  color: #166534;
 }
 
 .status-rueckzug {
-  background-color: #fed7d7;
-  color: #742a2a;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .status-beendet {
-  background-color: #e2e8f0;
-  color: #4a5568;
+  background: #e5e7eb;
+  color: #6b7280;
 }
 
-.trupp-members {
-  font-size: 0.9rem;
-  color: #4a5568;
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .member {
-  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
 }
 
-.funkrufname {
-  color: #718096;
-  font-style: italic;
+.member-role {
+  font-weight: 600;
+  color: #6b7280;
+  min-width: 2.5rem;
 }
 
-.trupp-time {
-  margin-top: 0.5rem;
-  text-align: right;
+.member-name {
+  color: #374151;
+}
+
+.time-info {
+  background: #f9fafb;
+  padding: 0.75rem;
+  border-radius: 6px;
+  border-left: 3px solid #dc2626;
 }
 
 .time-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.time-icon {
+  font-size: 0.875rem;
+}
+
+.time-value {
   font-family: 'Courier New', monospace;
-  font-weight: bold;
-  color: #38a169;
-  font-size: 1.1rem;
+  font-weight: 600;
+  color: #dc2626;
+  font-size: 0.875rem;
+}
+
+.start-time {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.card-footer {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.pressure-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.pressure-icon {
+  font-size: 0.875rem;
+}
+
+/* Status-specific card styling */
+.trupp-card.status-im_einsatz {
+  border-left: 4px solid #16a34a;
+}
+
+.trupp-card.status-rueckzug {
+  border-left: 4px solid #d97706;
+}
+
+.trupp-card.status-beendet {
+  opacity: 0.7;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .trupp-card {
+    padding: 0.875rem;
+  }
+  
+  .card-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  
+  .member {
+    font-size: 0.8rem;
+  }
+  
+  .time-info {
+    padding: 0.5rem;
+  }
 }
 </style>
 

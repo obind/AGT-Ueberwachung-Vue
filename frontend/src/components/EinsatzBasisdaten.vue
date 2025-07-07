@@ -1,57 +1,71 @@
 <template>
-  <div class="einsatz-basisdaten">
-    <div class="modal-overlay" v-if="showModal">
-      <div class="modal">
-        <h2>Einsatzbasisdaten</h2>
-        <form @submit.prevent="submitEinsatz">
-          <div class="form-group">
-            <label for="bearbeiter">Bearbeiter:</label>
-            <input
-              type="text"
-              id="bearbeiter"
-              v-model="formData.bearbeiter"
-              required
-              placeholder="Name des Bearbeiters"
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="einsatzort">Einsatzort:</label>
-            <input
-              type="text"
-              id="einsatzort"
-              v-model="formData.einsatzort"
-              required
-              placeholder="Adresse/Ort des Einsatzes"
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="einsatzbeginn">Einsatzbeginn:</label>
-            <input
-              type="datetime-local"
-              id="einsatzbeginn"
-              v-model="formData.einsatzbeginn"
-              required
-            />
-          </div>
-          
-          <div class="form-group">
-            <label for="notizen">Notizen (optional):</label>
-            <textarea
-              id="notizen"
-              v-model="formData.notizen"
-              placeholder="Zusätzliche Informationen zum Einsatz"
-              rows="3"
-            ></textarea>
-          </div>
-          
-          <div class="form-actions">
-            <button type="submit" class="btn-primary">Einsatz starten</button>
-          </div>
-        </form>
+  <div class="einsatz-form">
+    <form @submit.prevent="startEinsatz" class="form-container">
+      <div class="form-group">
+        <label for="bearbeiter" class="form-label">
+          <span class="label-icon">👤</span>
+          Bearbeiter
+        </label>
+        <input
+          id="bearbeiter"
+          v-model="formData.bearbeiter"
+          type="text"
+          class="form-input"
+          placeholder="Name des Bearbeiters"
+          required
+        />
       </div>
-    </div>
+
+      <div class="form-group">
+        <label for="einsatzort" class="form-label">
+          <span class="label-icon">📍</span>
+          Einsatzort
+        </label>
+        <input
+          id="einsatzort"
+          v-model="formData.einsatzort"
+          type="text"
+          class="form-input"
+          placeholder="Adresse/Ort des Einsatzes"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="einsatzbeginn" class="form-label">
+          <span class="label-icon">🕐</span>
+          Einsatzbeginn
+        </label>
+        <input
+          id="einsatzbeginn"
+          v-model="formData.einsatzbeginn"
+          type="datetime-local"
+          class="form-input"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="notizen" class="form-label">
+          <span class="label-icon">📝</span>
+          Notizen (optional)
+        </label>
+        <textarea
+          id="notizen"
+          v-model="formData.notizen"
+          class="form-textarea"
+          placeholder="Zusätzliche Informationen zum Einsatz"
+          rows="4"
+        ></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-start-einsatz">
+          <span class="btn-icon">🚀</span>
+          Einsatz starten
+        </button>
+      </div>
+    </form>
   </div>
 </template>
 
@@ -61,7 +75,6 @@ import { useEinsatzStore } from '../stores/einsatz'
 
 const einsatzStore = useEinsatzStore()
 
-const showModal = ref(true)
 const formData = ref({
   bearbeiter: '',
   einsatzort: '',
@@ -69,105 +82,138 @@ const formData = ref({
   notizen: ''
 })
 
-const emit = defineEmits<{
-  einsatzStarted: []
-}>()
-
 onMounted(() => {
   // Set current date and time as default
   const now = new Date()
-  formData.value.einsatzbeginn = now.toISOString().slice(0, 16)
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  
+  formData.value.einsatzbeginn = `${year}-${month}-${day}T${hours}:${minutes}`
 })
 
-function submitEinsatz() {
-  if (formData.value.bearbeiter && formData.value.einsatzort && formData.value.einsatzbeginn) {
-    einsatzStore.setEinsatz({
-      bearbeiter: formData.value.bearbeiter,
-      einsatzort: formData.value.einsatzort,
-      einsatzbeginn: new Date(formData.value.einsatzbeginn),
-      notizen: formData.value.notizen || undefined
-    })
-    
-    showModal.value = false
-    emit('einsatzStarted')
-  }
+function startEinsatz() {
+  einsatzStore.startEinsatz({
+    bearbeiter: formData.value.bearbeiter,
+    einsatzort: formData.value.einsatzort,
+    einsatzbeginn: new Date(formData.value.einsatzbeginn),
+    notizen: formData.value.notizen
+  })
 }
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
+.einsatz-form {
   width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.form-container {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  width: 90%;
-  max-width: 500px;
-}
-
-.modal h2 {
-  margin-bottom: 1.5rem;
-  color: #1a365d;
-  text-align: center;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .form-group {
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: bold;
-  color: #2d3748;
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #cbd5e0;
-  border-radius: 4px;
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #374151;
   font-size: 1rem;
 }
 
-.form-group input:focus,
-.form-group textarea:focus {
+.label-icon {
+  font-size: 1.1rem;
+}
+
+.form-input,
+.form-textarea {
+  padding: 0.875rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.2s;
+  background: #fafafa;
+}
+
+.form-input:focus,
+.form-textarea:focus {
   outline: none;
-  border-color: #3182ce;
-  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1);
+  border-color: #dc2626;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder {
+  color: #9ca3af;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 100px;
+  font-family: inherit;
 }
 
 .form-actions {
-  margin-top: 1.5rem;
-  text-align: center;
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
 }
 
-.btn-primary {
-  background-color: #3182ce;
+.btn-start-einsatz {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
   color: white;
-  padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 4px;
-  font-size: 1rem;
+  padding: 1rem 2rem;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
-.btn-primary:hover {
-  background-color: #2c5aa0;
+.btn-start-einsatz:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+}
+
+.btn-start-einsatz:active {
+  transform: translateY(0);
+}
+
+.btn-icon {
+  font-size: 1.2rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .form-container {
+    gap: 1.25rem;
+  }
+  
+  .form-input,
+  .form-textarea {
+    padding: 0.75rem;
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  .btn-start-einsatz {
+    padding: 0.875rem 1.5rem;
+    font-size: 1rem;
+  }
 }
 </style>
 
